@@ -1,21 +1,27 @@
 #include <Max3421e.h>
 #include <Usb.h>
 #include <AndroidAccessory.h>
-
-//byte pattern[] = {1, 2, 4, 8, 16, 32, 64, 128, 64, 32, 16, 8, 4, 2, 129, 66, 36, 24, 36, 66, 129, -1};
-//int pattern[] = {0, 0, 0, 0, 0, 0, 0, 0, -1};
-int default_pattern[] = {129, 66, 36, 24, 24, 36, 66, 129, -1};
-int default_speed = 200;
-
-int light_pins[8];
-int tempo_pin;
-
 AndroidAccessory acc("Not So Stupid",
 		     "Blinkenlights",
 		     "Blinkenlights Board",
 		     "1.0",
 		     "http://www.notso.net/",
 		     "0000000020121212");
+
+//#define FHT_N 256
+//#define LOG_OUT 1
+//#define OCT_NORM 1
+//#include <FHT.h>
+
+#include "fix_fft.h"
+
+//byte pattern[] = {1, 2, 4, 8, 16, 32, 64, 128, 64, 32, 16, 8, 4, 2, 129, 66, 36, 24, 36, 66, 129, -1};
+//int pattern[] = {0, 0, 0, 0, 0, 0, 0, 0, -1};
+int default_pattern[] = {129, 66, 36, 24, 24, 36, 66, 129, -1};
+int default_speed = 500;
+
+int light_pins[8];
+int tempo_pin;
 
 // the setup routine runs once when you press reset:
 void setup() {                
@@ -44,6 +50,7 @@ void loop() {
 #define COMMAND_PROGRAM_CHANNEL 1
 #define COMMAND_FASTER 2
 #define COMMAND_SLOWER 3
+#define COMMAND_MIC_DATA 99
 
 #define MAX_PATTERN_SIZE 128
 
@@ -52,9 +59,16 @@ int current_position;
 unsigned long last_frame_millis;
 unsigned long millis_per_frame = 500;
 
+#define FFT_SAMPLES 128
+#define FFT_N 7
+
+char audio_data[FFT_SAMPLES];
+char audio_data_im[FFT_SAMPLES];
+int audio_data_count = 0;
 
 void process_usb_command() {
-  byte msg[3];
+  int i, j;
+  byte msg[260];
   
   if (acc.isConnected()) {
     int len = acc.read(msg, sizeof(msg), 1);
@@ -62,12 +76,6 @@ void process_usb_command() {
       byte command = msg[0];
       byte target = msg[1];
       byte data = msg[2];
-
-      Serial.print("-- Command ");
-      Serial.print(command);
-      Serial.print(" target ");
-      Serial.print(target);
-      Serial.println("");
 
       switch (command) {
       case COMMAND_RESET:
@@ -87,7 +95,71 @@ void process_usb_command() {
         millis_per_frame = 4 * millis_per_frame / 3;
         Serial.print(" - speed ");
         Serial.print(millis_per_frame);
-        Serial.println("");
+        Serial.println(""); 
+        break;
+      case COMMAND_MIC_DATA:
+//        Serial.print("Data ");
+//        Serial.print(msg[1]);
+//        Serial.print(" = ");
+//        Serial.print((char)msg[2], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[3], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[4], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[5], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[6], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[7], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[8], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[9], DEC);
+//        Serial.print(".");
+//        Serial.print((char)msg[10], DEC);
+//        Serial.println();
+        int dataLength = msg[1] + 1;
+        
+        for (i = 0; (i < dataLength) && (audio_data_count < FFT_SAMPLES); i++, audio_data_count++) {
+          audio_data[audio_data_count] = msg[2 + i];
+          audio_data_im[i] = 0;
+          
+        }
+        
+        if (audio_data_count >= FFT_SAMPLES) {
+          fix_fft(audio_data, audio_data_im, FFT_N, 0);
+          
+          Serial.print("FFT ");
+          Serial.print(": ");
+          
+          for (i = 0; i < (FFT_SAMPLES / 2); i++) {
+            audio_data[i] = sqrt(audio_data[i] * audio_data[i] + audio_data_im[i] * audio_data_im[i]); 
+            Serial.print(audio_data[i], DEC);
+            Serial.print(".");
+          }
+          
+          Serial.print(" / ");
+          byte pattern = 0;
+          int sum = 0;
+          for(i = 0; i < 8; i++) {
+            sum = 0;
+            for (j = 0; j < (FFT_SAMPLES / 16); j++) {
+              sum += 1 << audio_data[(i * 8) + j];
+            }
+            Serial.print(sum, DEC);
+            Serial.print(".");
+            if (sum > 32) {
+               pattern = pattern | (1 << i);
+            }
+          }
+            
+          Serial.print("\n");
+
+          apply_light_pattern(pattern);
+          last_frame_millis = millis();
+          audio_data_count = 0;
+        }
         break;
       }
     }

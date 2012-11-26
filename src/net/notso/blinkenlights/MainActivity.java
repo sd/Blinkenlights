@@ -11,6 +11,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder.AudioSource;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -35,17 +38,23 @@ public class MainActivity extends Activity implements Runnable {
     FileOutputStream mOutputStream;
 
     private static final String ACTION_USB_PERMISSION = "com.google.android.DemoKit.action.USB_PERMISSION";
+
+    protected static final int MODE_PROGRAM = 0;
+    protected static final int MODE_MIC = 1;
+    protected static int mBlinkenMode = MODE_PROGRAM;
     
     Button ledButtons[] = new Button[8];
     Button resetButton;
     Button fasterButton;
     Button slowerButton;
+    Button micButton;
     private boolean mPermissionRequestPending;
     
     public static byte CMD_RESET = 0;
     public static byte CMD_PROGRAM_CHANNEL = 1;
     public static byte CMD_FASTER = 2;
     public static byte CMD_SLOWER = 3;
+    public static byte CMD_MIC_DATA = 99;
     
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -69,6 +78,8 @@ public class MainActivity extends Activity implements Runnable {
         slowerButton = (Button) this.findViewById(R.id.button_slower);
         resetButton = (Button) this.findViewById(R.id.button_reset);
 
+        micButton = (Button) this.findViewById(R.id.button_mic);
+
         ledButtons[0] = (Button) this.findViewById(R.id.button1);
         ledButtons[1] = (Button) this.findViewById(R.id.button2);
         ledButtons[2] = (Button) this.findViewById(R.id.button3);
@@ -89,6 +100,22 @@ public class MainActivity extends Activity implements Runnable {
         resetButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) { MainActivity.this.sendCommand(CMD_RESET, (byte) 0, (byte) 0); }
+        });
+        
+        micButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) { 
+                if (MainActivity.mBlinkenMode != MODE_MIC) {
+                    MainActivity.mBlinkenMode = MODE_MIC;
+                    micButton.setText("MIC!");
+                    startAudioCapture();
+                }
+                else {
+                    MainActivity.mBlinkenMode = MODE_PROGRAM;
+                    micButton.setText("mic");
+                    stopAudioCapture();
+                }
+            }
         });
         
         OnClickListener ledButtonListener = new OnClickListener() {
@@ -241,7 +268,7 @@ public class MainActivity extends Activity implements Runnable {
                 switch (buffer[i]) {
                 case 0x1:
                     if (len >= 3) {
-                        Message m = Message.obtain(mHandler, 1);
+                        Message m = Message.obtain(mHandler, MSG_EXAMPLE_1);
                         m.obj = new String(buffer, i + 1, 2);
                         mHandler.sendMessage(m);
                     }
@@ -250,7 +277,7 @@ public class MainActivity extends Activity implements Runnable {
 
                 case 0x4:
                     if (len >= 3) {
-                        Message m = Message.obtain(mHandler, 2);
+                        Message m = Message.obtain(mHandler, MSG_EXAMPLE_1);
                         m.obj = new Integer(composeInt(buffer[i + 1], buffer[i + 2]));
                         mHandler.sendMessage(m);
                     }
@@ -267,16 +294,49 @@ public class MainActivity extends Activity implements Runnable {
         }
     }
 
+    protected static final int MSG_AUDIO_DATA = 1;
+    protected static final int MSG_EXAMPLE_1 = 101;
+    protected static final int MSG_EXAMPLE_2 = 102;
+
+    protected static final int DOWNSAMPLE_FACTOR = 4;
+    protected static final int DATA_SIZE = 128;
+
+    protected static byte data8[] = new byte[DATA_SIZE];
+    protected static int data_counter = 0;
+    
     Handler mHandler = new Handler() {
+        
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-            case 0:
+            case MSG_AUDIO_DATA:
+                if (MainActivity.mBlinkenMode == MODE_MIC) {
+                  short data16[] = (short[]) msg.obj;
+                  
+//                  byte data8[] = new byte[data16.length];
+//                  for(int i = 0; i < data16.length; i++) {
+//                      data8[i] = (byte) (data16[i]);
+//                  }
+//                  sendData(CMD_MIC_DATA, data8);
+                    
+//                    Log.e(TAG, "Appending " + data16.length + " to " + data_counter);
+                    for (int i = 0; i < data16.length && (data_counter < DATA_SIZE); i += DOWNSAMPLE_FACTOR) {
+                        data8[data_counter] = (byte) (data16[i] / 256);
+                        data_counter++;
+                    }
+                    if (data_counter >= DATA_SIZE) {
+                        sendData(CMD_MIC_DATA, data8);
+                        data_counter = 0;
+                    }
+                }
+                break;
+                
+            case MSG_EXAMPLE_1:
 //                SwitchMsg o = (SwitchMsg) msg.obj;
 //                handleSwitchMessage(o);
                 break;
 
-            case 1:
+            case MSG_EXAMPLE_2:
 //                TemperatureMsg t = (TemperatureMsg) msg.obj;
 //                handleTemperatureMessage(t);
                 break;
@@ -285,20 +345,133 @@ public class MainActivity extends Activity implements Runnable {
         }
     };
 
-    public void sendCommand(byte command, byte target, int value) {
+    public void sendCommand(byte command, byte target, byte value) {
+        Log.e(TAG, "Data " + value);
         byte[] buffer = new byte[3];
         if (value > 255)
-            value = 255;
+            value = (byte) 255;
 
         buffer[0] = command;
         buffer[1] = target;
-        buffer[2] = (byte) value;
+        buffer[2] = value;
         if (mOutputStream != null && buffer[1] != -1) {
             try {
                 mOutputStream.write(buffer);
-            } catch (IOException e) {
+                mOutputStream.flush();
+            } 
+            catch (IOException e) {
                 Log.e(TAG, "write failed", e);
             }
         }
     }
+
+    public void sendData(byte command, byte[] data) {
+        if (data.length > 256) {
+            Log.e(TAG, "Too much data!!! " + data.length);
+            return;
+        }
+
+//        byte[] buffer = new byte[6];
+//        buffer[0] = command;
+//        
+//        if (mOutputStream != null && data.length > 0) {
+//          try {
+//            int data_sent = 0;
+//            while (data_sent < data.length) {
+//              buffer[1] = 4;
+//              buffer[2] = data[data_sent + 0];
+//              buffer[3] = data[data_sent + 1];
+//              buffer[4] = data[data_sent + 2];
+//              buffer[5] = data[data_sent + 3];
+//              data_sent += 4;
+//              mOutputStream.write(buffer);
+//              mOutputStream.flush();
+//            }
+//          } 
+//          catch (IOException e) {
+//            Log.e(TAG, "write failed", e);
+//          }
+//        }
+        
+        byte[] buffer = new byte[data.length + 2];
+
+        buffer[0] = command;
+        buffer[1] = (byte) (data.length - 1);
+        for(int i = 0; i < data.length; i++) {
+            buffer[i + 2] = data[i];
+        }
+        if (mOutputStream != null && data.length > 0) {
+            try {
+                mOutputStream.write(buffer);
+                mOutputStream.flush();
+            } 
+            catch (IOException e) {
+                Log.e(TAG, "write failed", e);
+            }
+        }
+    }
+
+    protected AudioCaptureThread mAudioThread = null;
+    protected void startAudioCapture() {
+        if (mAudioThread == null || mAudioThread.stopped) {
+            mAudioThread = new AudioCaptureThread();
+        }
+    }
+    protected void stopAudioCapture() {
+        if (mAudioThread != null) {
+            mAudioThread.endCapture();
+            mAudioThread = null;
+        }
+    }
+    private class AudioCaptureThread extends Thread {
+        protected static final int SAMPLE_RATE = 11025;
+        
+        private boolean stopped = false;
+
+        private AudioCaptureThread() {
+            start();
+        }
+
+        @Override
+        public void run() {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+            AudioRecord recorder = null;
+
+            try {
+                int n = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+
+                recorder = new AudioRecord(AudioSource.CAMCORDER, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, n * 10);
+
+                recorder.startRecording();
+
+                short[][] buffers = new short[256][256];
+                int bufferIndex = 0;
+                while (!stopped) {
+                    short[] buffer = buffers[bufferIndex++ % buffers.length];
+
+                    n = recorder.read(buffer, 0, buffer.length);
+
+                    Message m = Message.obtain(mHandler, MainActivity.MSG_AUDIO_DATA);
+                    m.obj = buffer;
+                    mHandler.sendMessage(m);
+                }
+            }
+            catch (Throwable x) {
+                Log.e(TAG, "Error reading voice audio", x);
+            }
+            finally {
+                recorder.stop();
+                recorder.release();
+                stopped = true;
+                Log.e(TAG, "Done Recording");
+            }
+        }
+
+        private void endCapture() {
+            stopped = true;
+        }
+
+    }
+
 }
