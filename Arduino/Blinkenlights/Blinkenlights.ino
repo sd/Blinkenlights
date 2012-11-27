@@ -10,8 +10,6 @@ AndroidAccessory acc("Not So Stupid",
 
 #include "fix_fft.h"
 
-#include "pattern_loop"
-
 void setup() {                
   Serial.begin(115200);
   Serial.println("\r\nStart");
@@ -20,18 +18,22 @@ void setup() {
   setup_tempo_pin(13);
   reset_pattern();  
   
-  setup_audio_pins(1, 2);
+  setup_audio_pin(1);
+  setup_audio_reference_pin(2);
 
   acc.powerOn();
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
+  int x;
 //  process_usb_command();
   
 //  pattern_loop();
 
-  read_audio_sample();
+  x = read_audio_sample();
+  if (x >= 0)
+    apply_pattern_byte(x);
 }
 
 #define COMMAND_RESET 0
@@ -41,66 +43,6 @@ void loop() {
 #define COMMAND_MIC_DATA 99
 
 
-#define FFT_SAMPLES 128
-#define FFT_N 7
-
-int audio_pin = 1;
-int audio_vcc_pin = 2;
-void setup_audio_pins(int pin, int vcc_pin) {
-  audio_pin = pin;
-  audio_vcc_pin = vcc_pin;
-}
-
-#define THREE_VOLTS = 690;  // math says 375, but measured it directly it gives 690
-
-char audio_data[FFT_SAMPLES];
-char audio_data_im[FFT_SAMPLES];
-int audio_data_count = 0;
-
-char read_audio_sample() {
-  int i, j;
-  int max = analogRead(audio_vcc_pin);
-  int sample10 = analogRead(audio_pin);
-  int sample10zero = (sample10 - (max / 2));
-  char sample8 = sample10zero * 127 / max;
-
-  audio_data[audio_data_count] = sample8;
-  audio_data_im[audio_data_count] = 0;
-  audio_data_count++;
-
-  if (audio_data_count >= FFT_SAMPLES) {
-    fix_fft(audio_data, audio_data_im, FFT_N, 0);
-          
-    Serial.print("FFT ");
-    Serial.print(": ");
-          
-    for (i = 0; i < (FFT_SAMPLES / 2); i++) {
-      audio_data[i] = sqrt(audio_data[i] * audio_data[i] + audio_data_im[i] * audio_data_im[i]); 
-      Serial.print(audio_data[i], DEC);
-      Serial.print(".");
-    }
-          
-    Serial.print(" / ");
-    byte pattern = 0;
-    int sum = 0;
-    for(i = 0; i < 8; i++) {
-      sum = 0;
-      for (j = 0; j < (FFT_SAMPLES / 16); j++) {
-        sum += audio_data[(i * 8) + j]; // 1 << audio_data[(i * 8) + j];
-      }
-      Serial.print(sum, DEC);
-      Serial.print(".");
-      if (sum > 8) {
-         pattern = pattern | (1 << i);
-      }
-    }
-      
-    Serial.print("\n");
-
-    apply_light_pattern(pattern);
-    audio_data_count = 0;
-  }
-}
 
 void process_usb_command() {
   int i, j;
@@ -115,23 +57,17 @@ void process_usb_command() {
 
       switch (command) {
       case COMMAND_RESET:
-        reset_all();
+        reset_pattern();
         break;
       case COMMAND_PROGRAM_CHANNEL:
         toggle_pattern_bit(target);
-        apply_light_pattern(current_pattern[current_position]);
+        apply_current_pattern();
         break;
       case COMMAND_FASTER:
-        millis_per_frame = 2 * millis_per_frame / 3;
-        Serial.print(" - speed ");
-        Serial.print(millis_per_frame);
-        Serial.println("");
+        increase_pattern_speed();
         break;
       case COMMAND_SLOWER:
-        millis_per_frame = 4 * millis_per_frame / 3;
-        Serial.print(" - speed ");
-        Serial.print(millis_per_frame);
-        Serial.println(""); 
+        decrease_pattern_speed();
         break;
       case COMMAND_MIC_DATA:
 //        Serial.print("Data ");
@@ -155,46 +91,47 @@ void process_usb_command() {
 //        Serial.print(".");
 //        Serial.print((char)msg[10], DEC);
 //        Serial.println();
-        int dataLength = msg[1] + 1;
-        
-        for (i = 0; (i < dataLength) && (audio_data_count < FFT_SAMPLES); i++, audio_data_count++) {
-          audio_data[audio_data_count] = msg[2 + i];
-          audio_data_im[i] = 0;
-        }
-        
-        if (audio_data_count >= FFT_SAMPLES) {
-          fix_fft(audio_data, audio_data_im, FFT_N, 0);
-          
-          Serial.print("FFT ");
-          Serial.print(": ");
-          
-          for (i = 0; i < (FFT_SAMPLES / 2); i++) {
-            audio_data[i] = sqrt(audio_data[i] * audio_data[i] + audio_data_im[i] * audio_data_im[i]); 
-            Serial.print(audio_data[i], DEC);
-            Serial.print(".");
-          }
-          
-          Serial.print(" / ");
-          byte pattern = 0;
-          int sum = 0;
-          for(i = 0; i < 8; i++) {
-            sum = 0;
-            for (j = 0; j < (FFT_SAMPLES / 16); j++) {
-              sum += 1 << audio_data[(i * 8) + j];
-            }
-            Serial.print(sum, DEC);
-            Serial.print(".");
-            if (sum > 32) {
-               pattern = pattern | (1 << i);
-            }
-          }
-            
-          Serial.print("\n");
 
-          apply_light_pattern(pattern);
-          last_frame_millis = millis();
-          audio_data_count = 0;
-        }
+//        int dataLength = msg[1] + 1;
+//        
+//        for (i = 0; (i < dataLength) && (audio_data_count < FFT_SAMPLES); i++, audio_data_count++) {
+//          audio_data[audio_data_count] = msg[2 + i];
+//          audio_data_im[i] = 0;
+//        }
+//        
+//        if (audio_data_count >= FFT_SAMPLES) {
+//          fix_fft(audio_data, audio_data_im, FFT_N, 0);
+//          
+//          Serial.print("FFT ");
+//          Serial.print(": ");
+//          
+//          for (i = 0; i < (FFT_SAMPLES / 2); i++) {
+//            audio_data[i] = sqrt(audio_data[i] * audio_data[i] + audio_data_im[i] * audio_data_im[i]); 
+//            Serial.print(audio_data[i], DEC);
+//            Serial.print(".");
+//          }
+//          
+//          Serial.print(" / ");
+//          byte pattern = 0;
+//          int sum = 0;
+//          for(i = 0; i < 8; i++) {
+//            sum = 0;
+//            for (j = 0; j < (FFT_SAMPLES / 16); j++) {
+//              sum += 1 << audio_data[(i * 8) + j];
+//            }
+//            Serial.print(sum, DEC);
+//            Serial.print(".");
+//            if (sum > 32) {
+//               pattern = pattern | (1 << i);
+//            }
+//          }
+//            
+//          Serial.print("\n");
+//
+//          apply_light_pattern(pattern);
+//          last_frame_millis = millis();
+//          audio_data_count = 0;
+//        }
         break;
       }
     }

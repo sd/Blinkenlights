@@ -51,7 +51,7 @@ void setup_tempo_pin(int pin) {
   digitalWrite(tempo_pin, LOW);
 }
 
-void apply_light_pattern(int pattern) {  
+void apply_pattern_byte(int pattern) {  
   for(int i = 0; i < 8; i++) {
     digitalWrite(light_pins[i], (pattern & (1 << i)) == 0 ? LOW : HIGH);
   }
@@ -76,6 +76,10 @@ void set_frames_per_second(int frames_per_second) {
   millis_per_frame = 1000 / frames_per_second;
 }
 
+void apply_current_pattern() {
+    apply_pattern_byte(current_pattern[current_position]);
+}
+
 void pattern_loop() {
   unsigned long current_millis = millis();
   if (last_frame_millis + millis_per_frame < current_millis) {
@@ -86,7 +90,7 @@ void pattern_loop() {
       current_position = 0;
     }
 
-    apply_light_pattern(current_pattern[current_position]);
+    apply_pattern_byte(current_pattern[current_position]);
     
     if (current_position % 2 == 0) {
       digitalWrite(tempo_pin, HIGH);
@@ -95,4 +99,18 @@ void pattern_loop() {
       digitalWrite(tempo_pin, LOW);
     }
   }
+}
+
+void increase_pattern_speed() {
+  millis_per_frame = 2 * millis_per_frame / 3;
+  Serial.print(" - speed up ");
+  Serial.print(millis_per_frame);
+  Serial.println("");
+}
+
+void decrease_pattern_speed() {
+  millis_per_frame = 4 * millis_per_frame / 3;
+  Serial.print(" - speed down ");
+  Serial.print(millis_per_frame);
+  Serial.println("");
 }
