@@ -8,11 +8,6 @@ AndroidAccessory acc("Not So Stupid",
 		     "http://www.notso.net/",
 		     "0000000020121212");
 
-//#define FHT_N 256
-//#define LOG_OUT 1
-//#define OCT_NORM 1
-//#include <FHT.h>
-
 #include "fix_fft.h"
 
 //byte pattern[] = {1, 2, 4, 8, 16, 32, 64, 128, 64, 32, 16, 8, 4, 2, 129, 66, 36, 24, 36, 66, 129, -1};
@@ -32,6 +27,7 @@ void setup() {
   setup_light_pins(22, 24, 26, 28, 30, 32, 34, 36);
   setup_tempo_pin(13);
   
+  setup_audio_pins(1, 2);
   reset_all();
   
   acc.powerOn();
@@ -39,11 +35,11 @@ void setup() {
 
 // the loop routine runs over and over again forever:
 void loop() {
-  process_usb_command();
+//  process_usb_command();
   
-  pattern_loop();
+//  pattern_loop();
 
-  delay(10);
+  read_audio_sample();
 }
 
 #define COMMAND_RESET 0
@@ -62,9 +58,63 @@ unsigned long millis_per_frame = 500;
 #define FFT_SAMPLES 128
 #define FFT_N 7
 
+int audio_pin = 1;
+int audio_vcc_pin = 2;
+void setup_audio_pins(int pin, int vcc_pin) {
+  audio_pin = pin;
+  audio_vcc_pin = vcc_pin;
+}
+
+#define THREE_VOLTS = 690;  // math says 375, but measured it directly it gives 690
+
 char audio_data[FFT_SAMPLES];
 char audio_data_im[FFT_SAMPLES];
 int audio_data_count = 0;
+
+char read_audio_sample() {
+  int i, j;
+  int max = analogRead(audio_vcc_pin);
+  int sample10 = analogRead(audio_pin);
+  int sample10zero = (sample10 - (max / 2));
+  char sample8 = sample10zero * 127 / max;
+
+  audio_data[audio_data_count] = sample8;
+  audio_data_im[audio_data_count] = 0;
+  audio_data_count++;
+
+  if (audio_data_count >= FFT_SAMPLES) {
+    fix_fft(audio_data, audio_data_im, FFT_N, 0);
+          
+    Serial.print("FFT ");
+    Serial.print(": ");
+          
+    for (i = 0; i < (FFT_SAMPLES / 2); i++) {
+      audio_data[i] = sqrt(audio_data[i] * audio_data[i] + audio_data_im[i] * audio_data_im[i]); 
+      Serial.print(audio_data[i], DEC);
+      Serial.print(".");
+    }
+          
+    Serial.print(" / ");
+    byte pattern = 0;
+    int sum = 0;
+    for(i = 0; i < 8; i++) {
+      sum = 0;
+      for (j = 0; j < (FFT_SAMPLES / 16); j++) {
+        sum += audio_data[(i * 8) + j]; // 1 << audio_data[(i * 8) + j];
+      }
+      Serial.print(sum, DEC);
+      Serial.print(".");
+      if (sum > 15) {
+         pattern = pattern | (1 << i);
+      }
+    }
+      
+    Serial.print("\n");
+
+    apply_light_pattern(pattern);
+    audio_data_count = 0;
+  }
+}
 
 void process_usb_command() {
   int i, j;
@@ -124,7 +174,6 @@ void process_usb_command() {
         for (i = 0; (i < dataLength) && (audio_data_count < FFT_SAMPLES); i++, audio_data_count++) {
           audio_data[audio_data_count] = msg[2 + i];
           audio_data_im[i] = 0;
-          
         }
         
         if (audio_data_count >= FFT_SAMPLES) {
