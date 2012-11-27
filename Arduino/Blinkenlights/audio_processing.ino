@@ -4,6 +4,7 @@
 int audio_pin = 1;
 int audio_vcc_pin = 2;
 int audio_reference_level = 675;
+int level_for_pattern = 8;
 
 void setup_audio_pin(int pin) {
   audio_pin = pin;
@@ -17,7 +18,7 @@ char audio_data[FFT_SAMPLES];
 char audio_data_im[FFT_SAMPLES];
 int audio_data_count = 0;
 
-byte read_audio_sample() {
+int read_audio_sample() {
   int i, j;
   int max = audio_reference_level > 0 ? audio_reference_level : analogRead(audio_vcc_pin);
   int sample10 = analogRead(audio_pin);
@@ -41,7 +42,7 @@ byte read_audio_sample() {
     }
           
     Serial.print(" / ");
-    byte pattern = 0;
+    int pattern = 0;
     int sum = 0;
     for(i = 0; i < 8; i++) {
       sum = 0;
@@ -50,7 +51,7 @@ byte read_audio_sample() {
       }
       Serial.print(sum, DEC);
       Serial.print(".");
-      if (sum > 8) {
+      if (sum > level_for_pattern) {
          pattern = pattern | (1 << i);
       }
     }
