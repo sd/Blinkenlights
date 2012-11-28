@@ -10,6 +10,14 @@ AndroidAccessory acc("Not So Stupid",
 
 #include "fix_fft.h"
 
+#define MODE_PATTERN 0
+#define MODE_FFT 1
+#define TOTAL_MODE_COUNT 2
+
+int mode = MODE_PATTERN;
+int mode_switch_pin = 52;
+int mode_switch_prev_state = 0;
+
 void setup() {                
   Serial.begin(115200);
   Serial.println("\r\nStart");
@@ -22,18 +30,31 @@ void setup() {
   setup_audio_reference_pin(2);
 
   acc.powerOn();
+  
+  pinMode(mode_switch_pin, INPUT);
 }
 
-// the loop routine runs over and over again forever:
 void loop() {
   int x;
-//  process_usb_command();
+  int mode_switch_state = digitalRead(mode_switch_pin);
+  if (mode_switch_state != mode_switch_prev_state) {
+    if (mode_switch_state == LOW) {
+      mode = (mode + 1) % TOTAL_MODE_COUNT;
+    }
+    mode_switch_prev_state = mode_switch_state;
+  }
   
-//  pattern_loop();
-
-  x = read_audio_sample();
-  if (x >= 0)
-    apply_pattern_byte(x);
+  switch(mode) {
+  case MODE_PATTERN:
+    pattern_loop();
+    break;
+  case MODE_FFT:
+    x = read_audio_sample();
+    if (x >= 0)
+      apply_pattern_byte(x);
+    break;
+  }
+//  process_usb_command();
 }
 
 #define COMMAND_RESET 0
