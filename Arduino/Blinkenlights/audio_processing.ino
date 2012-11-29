@@ -3,6 +3,7 @@
 
 int audio_pin = 1;
 int audio_vcc_pin = 2;
+int audio_sensitivity_pin = 3;
 int audio_reference_level = 675;
 int level_for_pattern = 8;
 
@@ -13,6 +14,9 @@ void setup_audio_reference_pin(int pin) {
   audio_vcc_pin = pin;
   audio_reference_level = analogRead(pin);
 }
+void setup_audio_sensitivity_pin(int pin) {
+  audio_sensitivity_pin = pin;
+}
 
 char audio_data[FFT_SAMPLES];
 char audio_data_im[FFT_SAMPLES];
@@ -22,6 +26,10 @@ int read_audio_sample() {
   int i, j;
   int max = audio_reference_level > 0 ? audio_reference_level : analogRead(audio_vcc_pin);
   int sample10 = analogRead(audio_pin);
+  
+  int level = (analogRead(audio_sensitivity_pin) >> 7) + 1; // 1-8
+  sample10 = sample10 * level;
+  
   int sample10zero = (sample10 - (max / 2));
   char sample8 = sample10zero * 127 / max;
 
@@ -32,6 +40,8 @@ int read_audio_sample() {
   if (audio_data_count >= FFT_SAMPLES) {
     fix_fft(audio_data, audio_data_im, FFT_N, 0);
           
+Serial.print(level, DEC);
+Serial.print(" ");
     Serial.print("FFT ");
     Serial.print(": ");
           

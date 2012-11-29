@@ -28,6 +28,7 @@ void setup() {
   
   setup_audio_pin(1);
   setup_audio_reference_pin(2);
+  setup_audio_sensitivity_pin(3);
 
   acc.powerOn();
   
