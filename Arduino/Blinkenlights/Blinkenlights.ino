@@ -14,10 +14,6 @@ void setup() {
 
   randomSeed(analogRead(0));
   
-//  setup_light_pins(22, 24, 26, 28, 30, 32, 34, 36);
-//  setup_tempo_pin(13);
-//  reset_pattern();  
-
   int light_pins[] = {22, 24, 26, 28, 30, 32, 34, 36};
   lights_setup(light_pins);
   
@@ -29,6 +25,8 @@ void setup() {
   audio_set_audio_pin(1);
   audio_set_audio_reference_pin(2);
   audio_set_audio_sensitivity_pin(3);
+
+  matrix_setup(2, 3, 4);
 
   pinMode(mode_switch_pin, INPUT);
   
@@ -55,6 +53,7 @@ void loop() {
   audio_each_loop(now);
   lights_each_loop(now);
   pattern_each_loop(now);
+  matrix_each_loop(now);
 
   switch(mode) {
   case MODE_PATTERN:

@@ -10,7 +10,8 @@ int audio_pin = 1;
 int audio_vcc_pin = 2;
 int audio_sensitivity_pin = 3;
 int audio_reference_level = 1023;
-int audio_level_for_pattern = 90;
+int audio_level_for_pattern = 120;
+int audio_channel_levels[FFT_LIGHTS];
 
 void audio_set_audio_pin(int pin) {
   audio_pin = pin;
@@ -54,6 +55,8 @@ int audio_each_loop(unsigned long now) {
     for(i = 0; i < FFT_LIGHTS; i++) {
       Serial.print(fft_oct_out[i], DEC);
       Serial.print(" . ");
+      audio_channel_levels[i] = fft_oct_out[i];
+      
       if (fft_oct_out[i] > audio_level_for_pattern) {
         audio_pattern = audio_pattern | (1 << i);
       }
@@ -71,10 +74,8 @@ int audio_each_loop(unsigned long now) {
 }
 
 void audio_active_loop(unsigned long now) {
-  Serial.println(".");
   if (audio_pattern >= 0) {
     lights_simple_levels(audio_pattern);
-    Serial.println(audio_pattern, DEC);
     audio_pattern = -1;
   }
 }
