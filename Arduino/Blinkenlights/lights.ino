@@ -1,11 +1,12 @@
 #define LIGHTS 8
+#define DEFAULT_SPEED 50
+#define SHADES_OF_LIGHT 8
+
 int light_pins[8];
 char lights[LIGHTS];
 
-#define DEFAULT_SPEED 50
 int light_loop_speed = DEFAULT_SPEED;
-unsigned long last_light_loop_micros = 0;
-#define SHADES_OF_LIGHT 8
+unsigned long lights_last_loop_micros = 0;
 int light_loop_counter = 0;
 
 int lights_decay_rate = 0;
@@ -14,8 +15,7 @@ int lights_decay_counter = 0;
 #define DECAY_STEPS 16
 int decay_decrements[] = {0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1}; // 7777665432221111
 
-
-void setup_lights(int pins[]) {
+void lights_setup(int pins[]) {
   int i;
   for (i = 0; i < LIGHTS; i++) {
     light_pins[i] = pins[i];
@@ -47,7 +47,7 @@ void light_levels(char l0, char l1, char l2, char l3, char l4, char l5, char l6,
   lights[7] = l7;
 }
 
-void simple_light_levels(int x) {
+void lights_simple_levels(int x) {
   for(int i = 0; i < 8; i++) {
     if (x & (1 << i)) {
       lights[i] = SHADES_OF_LIGHT - 1;
@@ -58,20 +58,22 @@ void simple_light_levels(int x) {
   }
 }
 
-void set_lights_decay(int rate) {
+void lights_set_decay(int rate) {
   lights_decay_rate = rate;
 }
 
+void lights_on_activation(unsigned long now) {
+}
 
-void lights_loop(unsigned long now) {
+void lights_each_loop(unsigned long now) {
   int i;
 
-  if (now < last_light_loop_micros) {
+  if (now < lights_last_loop_micros) {
     // we looped the counter, let's start again
-    last_light_loop_micros = now;
+    lights_last_loop_micros = now;
   }
   
-  if (now - last_light_loop_micros < light_loop_speed)
+  if (now - lights_last_loop_micros < light_loop_speed)
     return;
   
   for(i = 0; i < LIGHTS; i++) {
@@ -81,7 +83,7 @@ void lights_loop(unsigned long now) {
       digitalWrite(light_pins[i], HIGH);
   }  
 
-  last_light_loop_micros = now;
+  lights_last_loop_micros = now;
   light_loop_counter = (light_loop_counter + 1) % SHADES_OF_LIGHT;
   
   if (light_loop_counter == 0 && lights_decay_rate > 0) {
@@ -102,22 +104,7 @@ void lights_loop(unsigned long now) {
   }
 }
 
-unsigned long last_program_micros = 0;
-
-void lights_program(unsigned long now) {
-  if (now < last_program_micros) {
-    // we looped the counter, let's start again
-    last_program_micros = now;
-  }
-
-  if (now - last_program_micros < (200000)) {
-    return;
-  }
-
-  int i = random(0, 8);
-  lights[i] = SHADES_OF_LIGHT - 1;
-  Serial.println(i);
-
-  last_program_micros = now;
+void lights_active_loop(unsigned long now) {
 }
+
 

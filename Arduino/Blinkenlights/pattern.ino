@@ -1,3 +1,30 @@
+unsigned long pattern_last_micros = 0;
+
+void pattern_on_activation(unsigned long now) {
+  lights_set_decay(DEFAULT_DECAY);
+}
+
+void pattern_each_loop(unsigned long now) {
+}
+
+void pattern_active_loop(unsigned long now) {
+  if (now < pattern_last_micros) {
+    // we looped the counter, let's start again
+    pattern_last_micros = now;
+  }
+
+  if (now - pattern_last_micros < (200000)) {
+    return;
+  }
+
+  int i = random(0, 8);
+  lights[i] = SHADES_OF_LIGHT - 1;
+  Serial.println(i);
+
+  pattern_last_micros = now;
+}
+
+
 ////byte pattern[] = {1, 2, 4, 8, 16, 32, 64, 128, 64, 32, 16, 8, 4, 2, 129, 66, 36, 24, 36, 66, 129, -1};
 ////int pattern[] = {0, 0, 0, 0, 0, 0, 0, 0, -1};
 //

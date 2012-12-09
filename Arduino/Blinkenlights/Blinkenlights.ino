@@ -19,17 +19,20 @@ void setup() {
 //  reset_pattern();  
 
   int light_pins[] = {22, 24, 26, 28, 30, 32, 34, 36};
-  setup_lights(light_pins);
+  lights_setup(light_pins);
   
 //  light_levels(0, 1, 2, 3, 4, 5, 6, 7);
 //  simple_light_levels(0);
-  set_lights_decay(0);
+  lights_set_decay(0);
   
-  setup_audio_pin(1);
-  setup_audio_reference_pin(2);
-  setup_audio_sensitivity_pin(3);
+  audio_setup();
+  audio_set_audio_pin(1);
+  audio_set_audio_reference_pin(2);
+  audio_set_audio_sensitivity_pin(3);
 
   pinMode(mode_switch_pin, INPUT);
+  
+  process_mode_activation(micros());
 }
 
 unsigned long last_micros = 0;
@@ -44,36 +47,39 @@ void loop() {
   if (mode_switch_state != mode_switch_prev_state) {
     if (mode_switch_state == LOW) {
       mode = (mode + 1) % TOTAL_MODE_COUNT;
-      
-      switch(mode) { // one-time on mode change
-      case MODE_PATTERN:
-        set_lights_decay(DEFAULT_DECAY);
-        break;
-      case MODE_FFT:
-        set_lights_decay(0);
-        break;
-      }
+      process_mode_activation(now);
     }
     mode_switch_prev_state = mode_switch_state;
   }
 
+  audio_each_loop(now);
+  lights_each_loop(now);
+  pattern_each_loop(now);
+
   switch(mode) {
   case MODE_PATTERN:
-    lights_program(now);
+    pattern_active_loop(now);
     break;
   case MODE_FFT:
-    x = read_audio_sample();
-    if (x >= 0)
-      simple_light_levels(x);
+    audio_active_loop(now);
     break;
   }
-
-  lights_loop(now);
 
   last_micros = micros();
 //  Serial.print("Loop took ");
 //  Serial.print(now - last_micros, DEC);
 //  Serial.println(" us");
+}
+
+void process_mode_activation(unsigned long now) {
+  switch(mode) { // one-time on mode change
+  case MODE_PATTERN:
+    pattern_on_activation(now);
+    break;
+  case MODE_FFT:
+    audio_on_activation(now);
+    break;
+  }
 }
 
 
