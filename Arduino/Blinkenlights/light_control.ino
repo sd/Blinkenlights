@@ -48,9 +48,6 @@ void light_levels(char l0, char l1, char l2, char l3, char l4, char l5, char l6,
 }
 
 void simple_light_levels(int x) {
-  Serial.print("(");
-  Serial.print(x, DEC);
-  Serial.print(")");
   for(int i = 0; i < 8; i++) {
     if (x & (1 << i)) {
       lights[i] = SHADES_OF_LIGHT - 1;

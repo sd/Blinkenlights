@@ -9,7 +9,6 @@
 //		     "http://www.notso.net/",
 //		     "0000000020121212");
 
-#include "fix_fft.h"
 
 #define MODE_PATTERN 0
 #define MODE_FFT 1
