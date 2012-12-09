@@ -1,11 +1,14 @@
-#define FFT_SAMPLES 128
-#define FFT_N 7
+#define FFT_SAMPLES 64
+#define FFT_N 6  // 2 ** N == SAMPLES
+#define FFT_BUCKETS 32 // SAMPLES / 2
+
+#define FFT_LIGHTS 8
 
 int audio_pin = 1;
 int audio_vcc_pin = 2;
 int audio_sensitivity_pin = 3;
 int audio_reference_level = 675;
-int level_for_pattern = 8;
+int level_for_pattern = (FFT_BUCKETS / FFT_LIGHTS) * 1.1;
 
 void setup_audio_pin(int pin) {
   audio_pin = pin;
@@ -28,7 +31,7 @@ int read_audio_sample() {
   int sample10 = analogRead(audio_pin);
   
   int level = (analogRead(audio_sensitivity_pin) >> 7) + 1; // 1-8
-  sample10 = sample10 * level;
+//  sample10 = sample10 * level;
   
   int sample10zero = (sample10 - (max / 2));
   char sample8 = sample10zero * 127 / max;
@@ -45,7 +48,7 @@ Serial.print(" ");
     Serial.print("FFT ");
     Serial.print(": ");
           
-    for (i = 0; i < (FFT_SAMPLES / 2); i++) {
+    for (i = 0; i < FFT_BUCKETS; i++) {
       audio_data[i] = sqrt(audio_data[i] * audio_data[i] + audio_data_im[i] * audio_data_im[i]); 
       Serial.print(audio_data[i], DEC);
       Serial.print(".");
@@ -54,10 +57,10 @@ Serial.print(" ");
     Serial.print(" / ");
     int pattern = 0;
     int sum = 0;
-    for(i = 0; i < 8; i++) {
+    for(i = 0; i < FFT_LIGHTS; i++) {
       sum = 0;
-      for (j = 0; j < (FFT_SAMPLES / 16); j++) {
-        sum += audio_data[(i * 8) + j]; // 1 << audio_data[(i * 8) + j];
+      for (j = 0; j < (FFT_BUCKETS / FFT_LIGHTS); j++) {
+        sum += audio_data[(i * FFT_BUCKETS / FFT_LIGHTS) + j];
       }
       Serial.print(sum, DEC);
       Serial.print(".");
@@ -75,4 +78,5 @@ Serial.print(" ");
   }
   return -1;
 }
+
 
