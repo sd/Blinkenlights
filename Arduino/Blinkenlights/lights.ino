@@ -1,5 +1,5 @@
 #define LIGHTS 8
-#define DEFAULT_SPEED 50
+#define DEFAULT_SPEED 10
 #define SHADES_OF_LIGHT 8
 
 int light_pins[8];

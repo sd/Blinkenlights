@@ -9,16 +9,14 @@
 int audio_pin = 1;
 int audio_vcc_pin = 2;
 int audio_sensitivity_pin = 3;
-int audio_reference_level = 1023;
-int audio_level_for_pattern = 120;
 int audio_channel_levels[FFT_LIGHTS];
+int audio_channel_baseline[FFT_LIGHTS] = {75, 80, 85, 90, 85, 70, 50, 40};
 
 void audio_set_audio_pin(int pin) {
   audio_pin = pin;
 }
 void audio_set_audio_reference_pin(int pin) {
   audio_vcc_pin = pin;
-  audio_reference_level = analogRead(pin);
 }
 void audio_set_audio_sensitivity_pin(int pin) {
   audio_sensitivity_pin = pin;
@@ -28,11 +26,13 @@ int audio_data_count = 0;
 int audio_pattern = 0;
 
 void audio_setup() {
+  for(int i = 0; i < FFT_LIGHTS; i++) {
+    audio_channel_baseline[FFT_LIGHTS] = 0;
+  }
 }
 
 int audio_each_loop(unsigned long now) {
   int i, j;
-  int max = audio_reference_level > 0 ? audio_reference_level : analogRead(audio_vcc_pin);
   int sample10 = analogRead(audio_pin);
  
   int sample16 = (sample10 - 512) * 16;
@@ -53,15 +53,26 @@ int audio_each_loop(unsigned long now) {
     
     audio_pattern = 0;
     for(i = 0; i < FFT_LIGHTS; i++) {
-      Serial.print(fft_oct_out[i], DEC);
-      Serial.print(" . ");
       audio_channel_levels[i] = fft_oct_out[i];
+
+      Serial.print(audio_channel_levels[i], DEC);
+      Serial.print(" . ");
       
-      if (fft_oct_out[i] > audio_level_for_pattern) {
+      if (audio_channel_levels[i] > audio_channel_baseline[i]) {
         audio_pattern = audio_pattern | (1 << i);
+//        audio_channel_baseline[i] = (audio_channel_baseline[i] + audio_channel_levels[i]) / 2;
       }
+//      else {
+//        audio_channel_baseline[i] = audio_channel_baseline[i] - 10;
+//      }
     }
 
+    Serial.print(" / ");
+    for(i = 0; i < FFT_LIGHTS; i++) {
+      Serial.print(audio_channel_baseline[i], DEC);
+      Serial.print(" . ");
+    }
+    
     Serial.print(" : ");
     Serial.print(audio_pattern);
     Serial.println();
